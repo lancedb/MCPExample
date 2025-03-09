@@ -1,0 +1,5 @@
+.venv
+**/*.pyc
+**/*.txn
+**/*.manifest
+**/*.lance
