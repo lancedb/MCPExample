@@ -61,40 +61,27 @@ def create_markdown_dataframe(markdown_contents):
 
 
 # Check for environment variables and select embedding model
-#if os.getenv("JINA_API_KEY"):
-#    logger.info("Using Jina")
-#    MODEL_NAME = "jina-embeddings-v3"
-#    registry = EmbeddingFunctionRegistry.get_instance()
-#    model = registry.get("jina").create(name=MODEL_NAME, max_retries=2)
-#    EMBEDDING_DIM = 1024  # Jina's dimension
-#    MAX_TOKENS = 4000   # Jina uses a different tokenizer so it's hard to predict the number of tokens
-#else:
-#    logger.info("Using OpenAI")
-#    #MODEL_NAME = "text-embedding-3-large"
-#    registry = EmbeddingFunctionRegistry.get_instance()
-#    #model = registry.get("openai").create(name=MODEL_NAME, max_retries=2, api_key="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")
-#    #EMBEDDING_DIM = model.ndims()  # OpenAI's dimension
-#
-#    MODEL_NAME = "BAAI/bge-small-en-v1.5" #"BAAI/bge-m3"
-#    model = registry.get("sentence-transformers").create(name=MODEL_NAME)
-#    EMBEDDING_DIM = model.ndims()
-#    MAX_TOKENS = 8000    # OpenAI's token limit
-
-MAX_TOKENS = 8000
-MODEL_NAME = "BAAI/bge-small-en-v1.5"
-EMBEDDING_DIM = None
-model = None
 registry = EmbeddingFunctionRegistry.get_instance()
+MAX_TOKENS = 8000  # Reduced default
+if os.getenv("JINA_API_KEY"):
+    logger.info("Using Jina")
+    MODEL_NAME = "jina-embeddings-v3"
+    model = registry.get("jina").create(name=MODEL_NAME, max_retries=2)
+    EMBEDDING_DIM = 1024  # Jina's dimension
+    MAX_TOKENS = 4000   # Jina uses a different tokenizer
+elif os.getenv("OPENAI_API_KEY"):
+    logger.info("Using OpenAI")
+    MAX_TOKENS = 8000  # Further reduced from 7000 to handle large files safely
+    MODEL_NAME = "text-embedding-3-large"
+    model = registry.get("openai").create(name=MODEL_NAME, max_retries=2, api_key=os.environ.get("OPENAI_API_KEY"))
+    EMBEDDING_DIM = model.ndims()  # OpenAI's dimension
+else:
+    logger.info("Using sentence-transformers")
+    MAX_TOKENS = 8000
+    MODEL_NAME = "BAAI/bge-small-en-v1.5"
+    model = registry.get("sentence-transformers").create(name=MODEL_NAME)
+    EMBEDDING_DIM = model.ndims()
 
-def init_model():
-    global model
-    global EMBEDDING_DIM
-    if model is None:
-        model = registry.get("sentence-transformers").create(name=MODEL_NAME)
-        EMBEDDING_DIM = model.ndims()
-    return model
-
-init_model()
 
 class Method(LanceModel):
     code: str = model.SourceField()
@@ -183,7 +170,8 @@ def ingest_to_database(uri: str, table_name: str, method_data: list, class_data:
             markdown_df = create_markdown_dataframe(special_contents)
             logger.info("Adding %d special files to table", len(markdown_df))
             class_table.add(markdown_df)
-
+        class_table.create_fts_index("source_code", use_tantivy=False)
+        table.create_fts_index("code", use_tantivy=False)
         logger.info("Data ingestion completed successfully")
 
     except Exception as e:

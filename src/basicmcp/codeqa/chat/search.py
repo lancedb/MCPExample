@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import os
 import re
 import lancedb
@@ -23,14 +25,23 @@ def setup_database(codebase_path):
     return method_table, class_table
 
 # OpenAI client setup
-#client = OpenAI(api_key="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")
+OAI_CLIENT = None
 
-# Initialize the reranker
-#reranker = AnswerdotaiRerankers(column="source_code")
+# reranker
+RERANKER = None
+
+def check_and_init_openai():
+    if os.environ.get('OPENAI_API_KEY'):
+        global OAI_CLIENT
+        if OAI_CLIENT is None:
+            OAI_CLIENT = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+        return OAI_CLIENT
+    else:
+        logging.info("OPENAI_API_KEY not found in environment variables")
 
 # Replace groq_hyde function
 def openai_hyde(query):
-    chat_completion = client.chat.completions.create(
+    chat_completion = OAI_CLIENT.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
@@ -46,7 +57,7 @@ def openai_hyde(query):
     return chat_completion.choices[0].message.content
 
 def openai_hyde_v2(query, temp_context, hyde_query):
-    chat_completion = client.chat.completions.create(
+    chat_completion = OAI_CLIENT.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
@@ -63,7 +74,7 @@ def openai_hyde_v2(query, temp_context, hyde_query):
 
 
 def openai_chat(query, context):
-    chat_completion = client.chat.completions.create(
+    chat_completion = OAI_CLIENT.chat.completions.create(
         model="gpt-4o",
         messages=[
             {
@@ -85,30 +96,33 @@ def process_input(input_text):
     
     return processed_text
 
-def generate_context(codebase_path, query, rerank=False):
+def generate_context(codebase_path, query, rerank=True):
     try:
+        check_and_init_openai()
         method_table, class_table = setup_database(codebase_path)
-        #hyde_query = openai_hyde(query)
+        #hyde_query = openai_hyde(query) if OAI_CLIENT is not None else query
         hyde_query = query
-        method_docs = method_table.search(hyde_query).limit(5).to_pandas()
-        class_docs = class_table.search(hyde_query).limit(5).to_pandas()
+        method_docs = method_table.search(hyde_query, query_type="hybrid")
+        class_docs = class_table.search(hyde_query, query_type="hybrid")
 
-        temp_context = '\n'.join(method_docs['code'].tolist() + class_docs['source_code'].tolist())
+        #temp_context = '\n'.join(method_docs['code'].tolist() + class_docs['source_code'].tolist())
+        #if OAI_CLIENT:
+        #    hyde_query_v2 = openai_hyde_v2(query, temp_context, hyde_query)
 
-        #hyde_query_v2 = openai_hyde_v2(query, temp_context, hyde_query)
+        #    logging.info("-query_v2-")
+        #    logging.info(hyde_query_v2)
+        #    method_search = method_table.search(hyde_query_v2)
+        #    class_search = class_table.search(hyde_query_v2)
 
-        #logging.info("-query_v2-")
-        #logging.info(hyde_query_v2)
+        if rerank:
+            global RERANKER
+            if RERANKER is None:
+                RERANKER = AnswerdotaiRerankers(column="source_code")
+            method_docs = method_docs.rerank(RERANKER)
+            class_docs = class_docs.rerank(RERANKER)
 
-        #method_search = method_table.search(hyde_query_v2)
-        #class_search = class_table.search(hyde_query_v2)
-
-        #if rerank:
-        #    method_search = method_search.rerank(reranker)
-        #    class_search = class_search.rerank(reranker)
-
-        #method_docs = method_search.limit(5).to_list()
-        #class_docs = class_search.limit(5).to_list()
+        method_docs = method_docs.limit(5).to_pandas()
+        class_docs = class_docs.limit(5).to_pandas()
 
         top_3_methods = method_docs.to_dict('records')[:3]
         methods_combined = "\n\n".join(f"File: {doc['file_path']}\nCode:\n{doc['code']}" 

@@ -1,94 +1,62 @@
-# mcp-lance-db: A LanceDB MCP server
+# BasicMCP: A Code QA and Global Database MCP Server
 
-> The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
+> Built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction), this server provides intelligent code querying and global database management capabilities.
 
-This repository is an example of how to create a MCP server for [LanceDB](https://lancedb.com/), an embedded vector database.
+## Features
 
-## Overview
+### Code QA System
+- **Code Ingestion**: Support for both local codebases and GitHub repositories
+- **Intelligent Querying**: Search and analyze code using semantic understanding
+- **Multi-Format Support**: Handles various code file formats and structures
+- **Reference Tracking**: Maintains relationships between classes and methods
 
-A basic Model Context Protocol server for storing and retrieving memories in the LanceDB vector database.
-It acts as a semantic memory layer that allows storing text with vector embeddings for later retrieval.
+### Global Database
+- **Multi-Modal Storage**: Store and retrieve both text and images
+- **Vector Search**: Semantic search capabilities using LanceDB
+- **Base64 Support**: Handle base64 encoded images
 
-## Components
+## Tools
 
-### Tools
+The server provides the following MCP tools:
 
-The server implements two tools:
-- add-memory: Adds a new memory to the vector database
-  - Takes "content" as a required string argument
-  - Stores the text with vector embeddings for later retrieval
-  
-- search-memories: Retrieves semantically similar memories
-  - Takes "query" as a required string argument
-  - Optional "limit" parameter to control number of results (default: 5)
-  - Returns memories ranked by semantic similarity to the query
-  - Updates server state and notifies clients of resource changes
+### Code QA Tools
+- `ingest_codebase`: Add a new codebase to the vector database
+  - Supports local paths and GitHub repository URLs
+  - Automatically processes and indexes code structure
 
-## Configuration
+- `codeqa`: Query and analyze ingested codebases
+  - Natural language queries about code
+  - Returns relevant code snippets and context
 
-The server uses the following configuration:
-- Database path: "./lancedb"
-- Collection name: "memories"
-- Embedding provider: "sentence-transformers"
-- Model: "BAAI/bge-small-en-v1.5"
-- Device: "cpu"
-- Similarity threshold: 0.7 (upper bound for distance range)
+- `list_codebases`: List all available ingested codebases
 
-## Quickstart
+### Global Database Tools
+- `globaldb_ingest`: Store text and images in the global database
+- `globaldb_query`: Query stored data using semantic search
 
-#### Claude Desktop
+## Installation
 
-On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
-
+```bash
+pip install basicmcp
 ```
 {
-  "lancedb": {
-    "command": "uvx",
-    "args": [
-      "mcp-lance-db"
-    ]
+  "mcpServers": {
+    "codeqa": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/your/project",
+        "run",
+        "--python",
+        "3.12",
+        "basicmcp-codeqa"
+      ]
+    }
   }
 }
-```
 
-## Development
+Location:
 
-### Building and Publishing
+- MacOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+- Windows: %APPDATA%/Claude/claude_desktop_config.json
 
-To prepare the package for distribution:
-
-1. Sync dependencies and update lockfile:
-```bash
-uv sync
-```
-
-2. Build package distributions:
-```bash
-uv build
-```
-
-This will create source and wheel distributions in the `dist/` directory.
-
-3. Publish to PyPI:
-```bash
-uv publish
-```
-
-Note: You'll need to set PyPI credentials via environment variables or command flags:
-- Token: `--token` or `UV_PUBLISH_TOKEN`
-- Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`
-
-### Debugging
-
-Since MCP servers run over stdio, debugging can be challenging. For the best debugging
-experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
-
-
-You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
-
-```bash
-npx @modelcontextprotocol/inspector uv --directory $(PWD) run mcp-lance-db
-```
-
-Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.

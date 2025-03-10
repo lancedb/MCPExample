@@ -1,7 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from basicmcp.codeqa.index.run_ingestion import run_ingestion
 from basicmcp.codeqa.util import list_codebases
-from basicmcp.codeqa.index.ingest import init_model
 from basicmcp.codeqa.chat.search import generate_context
 from basicmcp.global_db.ops import ingest_data, query_db, pil_to_bytes
 from typing import List, Tuple, Union, Optional
@@ -25,7 +24,6 @@ async def ingest_codebase(dir: str="/Users/ayushchaurasia/Documents/trolo") -> s
         dir: Local path to codebase or github link to public repo
     """
     try:
-        init_model()
         content = run_ingestion(dir)
         return f"Added codebase: {content}"
     except Exception as e:
@@ -33,16 +31,14 @@ async def ingest_codebase(dir: str="/Users/ayushchaurasia/Documents/trolo") -> s
         raise
 
 @mcp.tool()
-async def codeqa(codebase: str, query: str) -> str:
+async def codeqa(codebase: str, query: str, rerank=True) -> str:
     """
     Talk with codebase
     Args:
         codebase: The codebase to query. Can be a name, github link, or local path
         query: The search query
     """
-    try:
-        init_model()
-        
+    try:        
         # Get available codebases
         available_codebases = list_codebases()
         
@@ -59,7 +55,7 @@ async def codeqa(codebase: str, query: str) -> str:
             available_msg = "\nAvailable codebases:\n" + "\n".join(available_codebases) if available_codebases else "\nNo codebases are currently ingested."
             return f"Codebase '{codebase_name}' not found. Please ingest it first using ingest_codebase.{available_msg}"
         
-        context = generate_context(codebase, query, rerank=False)
+        context = generate_context(codebase, query, rerank=rerank)
         if not context:
             return "No relevant context found for the query."
         return context
@@ -104,11 +100,10 @@ async def globaldb_query(query: str):
     return query_db(query)
 
 
-#if __name__ == "__main__":
-#    temp_codebase = "/Users/ayushchaurasia/Documents/trolo"
-#    try:
-#        context = generate_context(temp_codebase, "D-fine models definition purpose implementation", rerank=True)
-#        print(context)
-#    except Exception as e:
-#        logger.error("Error in main: %s", str(e))
-#
+if __name__ == "__main__":
+    try:
+        context = run_ingestion("https://github.com/lancedb/lancedb")
+        context = generate_context("lancedb", "what is lancedb")
+        print(context)
+    except Exception as e:
+        logger.error("Error in main: %s", str(e))
